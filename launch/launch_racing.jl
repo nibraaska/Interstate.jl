@@ -10,13 +10,14 @@ using DataStructures: CircularDeque
 using Flux, Flux.Optimise
 using Flux: onehotbatch, onecold, crossentropy, Momentum, params, ADAM
 using Base.Iterators: partition
+using Serialization
 using NNlib
 using CUDA
 using StatsBase: sample
 using BSON: @save, @load
 using Plots
 
-function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=100.0, lanes=3, lanewidth=5.0)
+function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=100.0, lanes=3, lanewidth=5.0, iteration=1)
 
     CMD_EGO = Channel{VehicleControl}(1)
     CMD_FLEET = Dict{Int, Channel{VehicleControl}}()
@@ -110,7 +111,7 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
         # @async visualize(SIM_ALL, EMG, view_objs, cam)
         @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=true,check_road_violation=[1,])
         # @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG, V=speed(m1), θ=heading(m1), θ_step=0.25)
-        @spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road, V=speed(m1), θ=heading(m1), θ_step=0.25)
+        @spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road, V=speed(m1), θ=heading(m1), θ_step=0.25, iteration=iteration)
         @spawn fleet_controller(CMD_FLEET, SENSE_FLEET, EMG, road)
         @spawn sense(SIM_ALL, EMG, sensors, road)
         # @spawn keyboard_broadcaster(KEY, EMG) 

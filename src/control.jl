@@ -4,7 +4,7 @@ using Flux, Flux.Optimise
 using Flux: onehotbatch, onecold, crossentropy, Momentum, params, ADAM
 using Base.Iterators: partition
 using NNlib
-using CUDA
+using Serialization
 using StatsBase: sample
 using BSON: @save, @load
 using Plots;
@@ -38,9 +38,7 @@ function model()
     else
         m = Chain(
             Dense(550, 1024, σ),
-            Dense(1024, 512, σ),
-            Dense(512, 128, σ),
-            Dense(128, 64, σ),
+            Dense(1024, 64, σ),
             Dense(64, 4),
             softmax
         )
@@ -168,14 +166,15 @@ function controller(CMD::Channel,
                     θ = 0.0, 
                     V_max = 100.0, 
                     θ_step=0.1, 
-                    V_step = 1.5)
+                    V_step = 1.5,
+                    iteration=1)
     ego_meas = fetch(SENSE)
     fleet_meas = fetch(SENSE_FLEET)
     K₁ = K₂ = 0.5
     e = 0
     target_update_counter = 0  
-    main_model = model() |> gpu
-    target_model = model() |> gpu
+    main_model = model()
+    target_model = model() 
     
     replay_memory = Memory[]
     while true
@@ -189,7 +188,7 @@ function controller(CMD::Channel,
         fleat_meas_tmp = [ [fleet_meas[key].position[1] fleet_meas[key].position[2] fleet_meas[key].speed fleet_meas[key].heading fleet_meas[key].road_segment_id fleet_meas[key].target_lane fleet_meas[key].target_vel fleet_meas[key].front fleet_meas[key].rear fleet_meas[key].left fleet_meas[key].right ] for key in keys(fleet_meas)]
         fleat_meas_list = hcat((fleat_meas_tmp)...);
 
-        input_meas = transpose(normalize!([ego_meas_list fleat_meas_list])) |> gpu
+        input_meas = transpose(normalize!([ego_meas_list fleat_meas_list]))
         action = argmax(target_model(input_meas))[1]
         speed = ego_meas.speed
         heading = ego_meas.heading
@@ -205,6 +204,7 @@ function controller(CMD::Channel,
         else
             println("ERROR")
         end
+        # println(action)
         err_1 = V-speed
         err_2 = clip(θ-heading, π/2)
         command = [K₁*err_1, K₂*err_2]
@@ -226,6 +226,7 @@ function controller(CMD::Channel,
                 if isfile("mymodel.bson")
                     rm("mymodel.bson")
                 end
+                serialize("replay_memory_$iteration.dat", replay_memory)
                 @save "mymodel.bson" target_model
             end
             # println(target_update_counter)
@@ -251,6 +252,7 @@ function controller(CMD::Channel,
             # update_memory!(mem_past, replay_memory)
         end
         target_update_counter = target_update_counter + 1
+        # println(target_update_counter)
         @replace(CMD, command)
     end
 end
