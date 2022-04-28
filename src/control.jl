@@ -21,6 +21,7 @@ MAX_REPLAY_MEMORY_SIZE = 1000
 MINIBATCH_SIZE = 100
 DISCOUNT = 0.9
 UPDATE_TARGET_EVERY = 10
+EXPLORE = 0.05
 opt = ADAM()
 
 mutable struct Memory
@@ -188,11 +189,14 @@ function controller(CMD::Channel,
         fleat_meas_tmp = [ [fleet_meas[key].position[1] fleet_meas[key].position[2] fleet_meas[key].speed fleet_meas[key].heading fleet_meas[key].road_segment_id fleet_meas[key].target_lane fleet_meas[key].target_vel fleet_meas[key].front fleet_meas[key].rear fleet_meas[key].left fleet_meas[key].right ] for key in keys(fleet_meas)]
         fleat_meas_list = hcat((fleat_meas_tmp)...);
 
-        input_meas = transpose(normalize!([ego_meas_list fleat_meas_list]))
+        input_meas = transpose([ego_meas_list fleat_meas_list])
         action = argmax(target_model(input_meas))[1]
         speed = ego_meas.speed
         heading = ego_meas.heading
         segment = ego_meas.road_segment_id
+        if rand(1)[1] < EXPLORE
+            action = rand(1:4)[1]
+        end
         if action == 1
             V = min(V_max, V+V_step)
         elseif action == 2
@@ -226,7 +230,7 @@ function controller(CMD::Channel,
                 if isfile("mymodel.bson")
                     rm("mymodel.bson")
                 end
-                serialize("replay_memory_$iteration.dat", replay_memory)
+                serialize("data/replay_memory_$iteration.dat", replay_memory)
                 @save "mymodel.bson" target_model
             end
             # println(target_update_counter)
