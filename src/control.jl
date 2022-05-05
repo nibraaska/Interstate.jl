@@ -19,9 +19,9 @@ end
 
 MAX_REPLAY_MEMORY_SIZE = 1000
 MINIBATCH_SIZE = 100
-DISCOUNT = 0.9
+DISCOUNT = 0.5
 UPDATE_TARGET_EVERY = 10
-EXPLORE = 0.05
+EXPLORE = 0.5
 opt = ADAM()
 
 mutable struct Memory
@@ -174,8 +174,8 @@ function controller(CMD::Channel,
     K₁ = K₂ = 0.5
     e = 0
     target_update_counter = 0  
-    main_model = model()
-    target_model = model() 
+    main_model = model() |> gpu
+    target_model = model() |> gpu
     
     replay_memory = Memory[]
     while true
@@ -189,7 +189,7 @@ function controller(CMD::Channel,
         fleat_meas_tmp = [ [fleet_meas[key].position[1] fleet_meas[key].position[2] fleet_meas[key].speed fleet_meas[key].heading fleet_meas[key].road_segment_id fleet_meas[key].target_lane fleet_meas[key].target_vel fleet_meas[key].front fleet_meas[key].rear fleet_meas[key].left fleet_meas[key].right ] for key in keys(fleet_meas)]
         fleat_meas_list = hcat((fleat_meas_tmp)...);
 
-        input_meas = transpose([ego_meas_list fleat_meas_list])
+        input_meas = transpose([ego_meas_list fleat_meas_list]) |> gpu
         action = argmax(target_model(input_meas))[1]
         speed = ego_meas.speed
         heading = ego_meas.heading
@@ -217,7 +217,7 @@ function controller(CMD::Channel,
         e = @fetch_or_default(EMG, e)
         if e == 1
             terminal = true
-            mem_past = Memory(input_meas, action, -100, input_meas, true)
+            mem_past = Memory(input_meas, action, -1000, input_meas, true)
             update_memory!(mem_past, replay_memory)
             # println("Final length", length(replay_memory))
             if length(replay_memory) >= MINIBATCH_SIZE
@@ -231,7 +231,9 @@ function controller(CMD::Channel,
                     rm("mymodel.bson")
                 end
                 serialize("data/replay_memory_$iteration.dat", replay_memory)
-                @save "mymodel.bson" target_model
+                target_model = target_model |> cpu
+                replay_memory = nothing
+                # @save "mymodel.bson" target_model
             end
             # println(target_update_counter)
             # update_memory!(mem_past, replay_memory)
@@ -240,7 +242,7 @@ function controller(CMD::Channel,
             # end
             # @save "mymodel.bson" target_model
         else
-            mem_past = Memory(input_meas, action, ego_meas.time, input_meas, false)
+            mem_past = Memory(input_meas, action, ego_meas.time + speed, input_meas, false)
             len = length(replay_memory)
             if len > 0
                 replay_memory[len].sₙ = input_meas

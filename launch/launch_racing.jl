@@ -85,30 +85,30 @@ function launch_racing(; num_agents=50, num_viewable=10, loop=true, loop_radius=
     visualize_road(scene, road)
    
     #TODO pull view_obj stuff into function 
-    # view_objs = []
+    view_objs = []
     
-    # for i ∈ 1:num_viewable
-    #     color = Observable(movables[i].color)
-    #     corners = Observable{SVector{8, SVector{3, Float64}}}(get_corners(movables[i]))
-    #     push!(view_objs, (corners, color)) 
+    for i ∈ 1:num_viewable
+        color = Observable(movables[i].color)
+        corners = Observable{SVector{8, SVector{3, Float64}}}(get_corners(movables[i]))
+        push!(view_objs, (corners, color)) 
 
-    #     hull = @lift convexhull($corners...)
-    #     poly = @lift polyhedron($hull)
-    #     mesh = @lift Polyhedra.Mesh($poly)  
-    #     GLMakie.mesh!(scene, mesh, color=color)
-    # end
+        hull = @lift convexhull($corners...)
+        poly = @lift polyhedron($hull)
+        mesh = @lift Polyhedra.Mesh($poly)  
+        GLMakie.mesh!(scene, mesh, color=color)
+    end
 
-    # cam = (; x=Observable(0.0), y=Observable(0.0), θ=Observable(0.0))
+    cam = (; x=Observable(0.0), y=Observable(0.0), θ=Observable(0.0))
 
-    # camera_pos = @lift Vec3{Float32}($(cam.x)-20*cos($(cam.θ)), $(cam.y)-20*sin($(cam.θ)), 10)
-    # lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
-    # @lift update_cam!(scene, $camera_pos, $lookat)
+    camera_pos = @lift Vec3{Float32}($(cam.x)-20*cos($(cam.θ)), $(cam.y)-20*sin($(cam.θ)), 10)
+    lookat = @lift Vec3{Float32}($(cam.x), $(cam.y), 0)
+    @lift update_cam!(scene, $camera_pos, $lookat)
 
     sim = Simulator(movables, road)
 
-    # display(scene)
+    display(scene)
     @sync begin
-        # @async visualize(SIM_ALL, EMG, view_objs, cam)
+        @async visualize(SIM_ALL, EMG, view_objs, cam)
         @spawn simulate(sim, EMG, SIM_ALL; disp=false, check_collision=true,check_road_violation=[1,])
         # @spawn keyboard_controller(KEY, CMD_EGO, SENSE_EGO, EMG, V=speed(m1), θ=heading(m1), θ_step=0.25)
         @spawn controller(CMD_EGO, SENSE_EGO, SENSE_FLEET, EMG, road, V=speed(m1), θ=heading(m1), θ_step=0.25, iteration=iteration)
